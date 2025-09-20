@@ -9,8 +9,7 @@ on:
   # See: https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#push.
   push:
     branches: [ "main" ]
-     
-    tags-ignore: [ "main" ]
+    tags-ignore: [ "**" ]
      
 
 concurrency:
@@ -95,7 +94,7 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install clang mold ccache build-essential cmake ninja-build pkgconf python3-zmq libevent-dev libboost-dev libsqlite3-dev systemtap-sdt-dev libzmq3-dev qt6-base-dev qt6-tools-dev qt6-l10n-tools libqrencode-dev capnproto libcapnp-dev -y
-          sudo pip3 install --break-system-packages pycapnp
+          pip3 install --user pycapnp
       - name: Compile and run tests
         run: |
           # Run tests on commits after the last merge commit and before the PR head commit
@@ -133,12 +132,11 @@ jobs:
       BASE_ROOT_DIR: ${{ github.workspace }}
 
     steps:
-      - &CHECKOUT
-        name: Checkout
+      - name: Checkout
+        id: checkout
         uses: actions/checkout@v5
         with:
-          # Ensure the latest merged pull request state is used, even on re-runs.
-          ref: &CHECKOUT_REF_TMPL ${{ github.event_name == 'pull_request' && github.ref || '' }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
 
       - name: Clang version
         run: |
@@ -160,7 +158,7 @@ jobs:
       - name: Install Python packages
         run: |
           git clone -b v2.1.0 https://github.com/capnproto/pycapnp
-          pip3 install ./pycapnp -C force-bundled-libcapnp=True --break-system-packages
+          pip3 install --user ./pycapnp -C force-bundled-libcapnp=True
 
       - name: Set Ccache directory
         run: echo "CCACHE_DIR=${RUNNER_TEMP}/ccache_dir" >> "$GITHUB_ENV"
@@ -209,7 +207,11 @@ jobs:
             job-name: 'Windows native, fuzz, VS 2022'
 
     steps:
-      - *CHECKOUT
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
 
       - name: Configure Developer Command Prompt for Microsoft Visual C++
         # Using microsoft/setup-msbuild is not enough.
@@ -266,6 +268,7 @@ jobs:
       - name: Get bitcoind manifest
         if: matrix.job-type == 'standard'
         working-directory: build
+        shell: pwsh
         run: |
           mt.exe -nologo -inputresource:bin/Release/bitcoind.exe -out:bitcoind.manifest
           cat bitcoind.manifest
@@ -291,6 +294,7 @@ jobs:
           BITCOINUTIL: '${{ github.workspace }}\build\bin\Release\bitcoin-util.exe'
           BITCOINWALLET: '${{ github.workspace }}\build\bin\Release\bitcoin-wallet.exe'
           TEST_RUNNER_EXTRA: ${{ github.event_name != 'pull_request' && '--extended' || '' }}
+        shell: pwsh
         run: py -3 test/functional/test_runner.py --jobs $NUMBER_OF_PROCESSORS --ci --quiet --tmpdirprefix="${RUNNER_TEMP}" --combinedlogslen=99999999 --timeout-factor=${TEST_RUNNER_TIMEOUT_FACTOR} ${TEST_RUNNER_EXTRA}
 
       - name: Clone corpora
@@ -306,6 +310,7 @@ jobs:
         working-directory: build
         env:
           BITCOINFUZZ: '${{ github.workspace }}\build\bin\Release\fuzz.exe'
+        shell: pwsh
         run: |
           py -3 test/fuzz/test_runner.py --par $NUMBER_OF_PROCESSORS --loglevel DEBUG "${RUNNER_TEMP}/qa-assets/fuzz_corpora"
 
@@ -320,7 +325,11 @@ jobs:
       DANGER_CI_ON_HOST_FOLDERS: 1
 
     steps:
-      - *CHECKOUT
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
 
       - name: Configure environment
         uses: ./.github/actions/configure-environment
@@ -360,7 +369,11 @@ jobs:
       TEST_RUNNER_TIMEOUT_FACTOR: 40
 
     steps:
-      - *CHECKOUT
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
 
       - name: Download built executables
         uses: actions/download-artifact@v4
@@ -417,6 +430,7 @@ jobs:
           # feature_unsupported_utxo_db.py fails on windows because of emojis in the test data directory
           EXCLUDE: '--exclude wallet_multiwallet.py,feature_unsupported_utxo_db.py'
           TEST_RUNNER_EXTRA: ${{ github.event_name != 'pull_request' && '--extended' || '' }}
+        shell: pwsh
         run: py -3 test/functional/test_runner.py --jobs $NUMBER_OF_PROCESSORS --ci --quiet --tmpdirprefix="$RUNNER_TEMP" --combinedlogslen=99999999 --timeout-factor=$TEST_RUNNER_TIMEOUT_FACTOR $EXCLUDE $TEST_RUNNER_EXTRA
 
   ci-matrix:
@@ -501,7 +515,11 @@ jobs:
             file-env: './ci/test/00_setup_env_native_msan.sh'
 
     steps:
-      - *CHECKOUT
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
 
       - name: Configure environment
         uses: ./.github/actions/configure-environment
@@ -544,7 +562,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: *CHECKOUT_REF_TMPL
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
           fetch-depth: 0
 
       - name: Configure Docker
