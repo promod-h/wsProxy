@@ -1,4 +1,7 @@
-wsProxy
+ npm run test 
+ mocha 
+ npm run start 
+ wsProxy
 =======
 [![Build Status](https://travis-ci.org/herenow/wsProxy.svg?branch=master)](https://travis-ci.org/herenow/wsProxy)
 
